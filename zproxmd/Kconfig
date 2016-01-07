@@ -1,0 +1,9 @@
+config ZILOG_ZPROXMD
+    tristate "Zilog ZMOTION Sensor Support"
+    depends on m && ARM && MODULES && ARCH_MXC
+    default n
+    help
+        This kernel object adds support for configuring and reading
+        the Zilog ZMOTION ZEPIR motion detection sensor based on the
+        Z8FS040 ASIC MCU. This driver requires UART communications and
+        is specific to the i.MX6 family of UART drivers. 
