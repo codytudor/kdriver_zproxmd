@@ -92,11 +92,8 @@ struct zproxmd_port {
 };
 
 static struct platform_device_id serial_zproxmd_devtype[] = {
-    {
-        .name = DRIVER_NAME,
-    }, {
-        /* sentinel */
-    }
+    { .name = DRIVER_NAME,}, 
+    { /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(platform, serial_zproxmd_devtype);
 
