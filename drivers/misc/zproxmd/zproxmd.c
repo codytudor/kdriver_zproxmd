@@ -811,9 +811,13 @@ static void zproxmd_uart_stop_rx(struct uart_port *port)
     writel(temp & ~UCR2_RXEN, sport->port.membase + UCR2);
 }
 
+static void zproxmd_dev_release(struct device *dev)
+{
+    /* sentinel */
+}
+
+
 #define CMD_LIST_LENGTH 8
-
-
 
 int zproxmd_init_sensor(void)
 {
@@ -835,22 +839,19 @@ int zproxmd_init_sensor(void)
     /* Second we set the default range setting  */
     /* Third we set the default sensitivity setting  */
     /* Finally we set the default frequency response setting  */
-    for (i = 0; i < CMD_LIST_LENGTH; i++) {
-        uart_write_value(cmd_list[i]);
-        memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
-        
-        msleep(20);
-        uart_read_value(local_buffer, 1);
-        
+    for (i = 0; i < CMD_LIST_LENGTH; i = i + 2) {
         uart_write_value(cmd_list[i]);
         
-        msleep(20);
+        msleep(10);
+        clear_rx_circ_buf();        
+        uart_write_value(cmd_list[i+1]);
+        msleep(5);
+        
         memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
         uart_read_value(local_buffer, 1);
         
         if (local_buffer[0] != SENSOR_ACK)
             retval = -ENOMSG;
-        
     }
     
     return retval;
@@ -858,111 +859,80 @@ int zproxmd_init_sensor(void)
 
 static ssize_t zproxmd_store_value(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
-    int read_length;
-    int retval = 0;
     char local_buffer[BUFFER_MAX_SIZE];
-    int expected_length = 0;
-    long result = 0;
-    char *newline;
-    
-    newline = strpbrk(buf, "\n");
-    
-    if (!newline)
-        *newline = '\0';
-    
-    if (strcmp(attr->attr.name, "freq_resp") == 0) {
-        expected_length = 1;
-        if (strlen(buf) != expected_length) {
-            pr_err("zproxmd: string too long or empty, expecting 'H' or 'L'\n");
-            goto out;
-        }
-        else {
-            if (buf[0] != 'H' && buf[0] != 'L') {
-                pr_err("zproxmd: invalid setting, expecting 'H' or 'L'\n");
-                goto out;
-            }
-        }
-    }
-    else if (strcmp(attr->attr.name, "range") == 0) {
-        expected_length = 3;
-        if (strlen(buf) != expected_length) {
-            pr_err("zproxmd: string too long or too short/empty, expecting three digit decimal value\n");
-            goto out;
-        }
-        else {
-            retval = kstrtol(buf, 10, &result);
-            if((result < 0) || (result > 7) || (retval > 0)) {
-                pr_err("zproxmd: invalid setting, expecting decimal value between 000 ~ 007\n");
-                goto out;
-            }
-        }
-    }
-    else if (strcmp(attr->attr.name, "sensitivity") == 0) {
-        expected_length = 3;
-        if(strlen(buf) != expected_length) {
-            pr_err("zproxmd: string too long or too short/empty, expecting three digit decimal value\n");
-            goto out;
-        }
-        else {
-            retval = kstrtol(buf, 10, &result);
-            if((result < 0) || (result > 255) || (retval > 0)) {
-                pr_err("zproxmd: invalid setting, expecting decimal value between 000 ~ 255\n");
-                goto out;
-            }
-        }
-    }
-    else if (strcmp(attr->attr.name, "time_remaining") == 0) {
-        expected_length = 3;
-        if(strlen(buf) != expected_length) {
-            pr_err("zproxmd: string too long or too short/empty, expecting three digit decimal value\n");
-            goto out;
-        }
-        else {
-            retval = kstrtol(buf, 10, &result);
-            if((result < 0) || (result > 255) || (retval > 0)) {
-                pr_err("zproxmd: invalid setting, expecting decimal value between 000 ~ 255\n");
-                goto out;
-            }
-        }
-    }
+    long result;
+    int retval;
     
     memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
-    read_length = 0;
+    result = 0;
     retval = 0;
     
-    uart_filp = filp_open(portname, O_RDWR | O_NOCTTY, 0); 
-    clear_rx_circ_buf();
+    strncpy(local_buffer, buf, strcspn(buf, "\n"));
    
     if (strcmp(attr->attr.name, "freq_resp") == 0) {
-        uart_write_value(CMD_FREQ_RESP_WRITE);
-        read_length = 1;
+        if (strlen(local_buffer) != 1) {
+            dev_err(dev, "string too long or empty, expecting 'H' or 'L'\n");
+            goto out;
+        }
+        else {
+            if (local_buffer[0] != 'H' && local_buffer[0] != 'L') {
+                dev_err(dev, "invalid setting, expecting 'H' or 'L'\n");
+                goto out;
+            }
+        }
     }
     else if (strcmp(attr->attr.name, "range") == 0) {
+        if (strlen(local_buffer) != 3) {
+            dev_err(dev, "string too long or too short/empty, expecting three digit decimal value\n");
+            goto out;
+        }
+        else {
+            retval = kstrtol(local_buffer, 10, &result);
+            if((result < 0) || (result > 7) || (retval > 0)) {
+                dev_err(dev, "invalid setting, expecting decimal value between 000 ~ 007\n");
+                goto out;
+            }
+        }
+    }
+    else if ((strcmp(attr->attr.name, "sensitivity") == 0) || (strcmp(attr->attr.name, "time_remaining") == 0)) {
+        if(strlen(local_buffer) != 3) {
+            dev_err(dev, "string too long or too short/empty, expecting three digit decimal value\n");
+            goto out;
+        }
+        else {
+            retval = kstrtol(local_buffer, 10, &result);
+            if((result < 0) || (result > 255) || (retval > 0)) {
+                dev_err(dev, "invalid setting, expecting decimal value between 000 ~ 255\n");
+                goto out;
+            }
+        }
+    }
+    
+    uart_filp = filp_open(portname, O_RDWR | O_NOCTTY, 0); 
+   
+    if (strcmp(attr->attr.name, "freq_resp") == 0)
+        uart_write_value(CMD_FREQ_RESP_WRITE);
+    else if (strcmp(attr->attr.name, "range") == 0)
         uart_write_value(CMD_RANGE_CONTROL_WRITE);
-        read_length = 3;
-    }
-    else if (strcmp(attr->attr.name, "sensitivity") == 0) {
+    else if (strcmp(attr->attr.name, "sensitivity") == 0)
         uart_write_value(CMD_SENS_WRITE);
-        read_length = 3;
-    }
-    else if (strcmp(attr->attr.name, "time_remaining") == 0) {
+    else if (strcmp(attr->attr.name, "time_remaining") == 0)
         uart_write_value(CMD_DELAY_TIME_WRITE);
-        read_length = 3;
-    }
     
-    msleep(20);
-    uart_read_value(local_buffer, read_length);
+    msleep(10);
     
+    clear_rx_circ_buf();    
     memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
+    strncpy(local_buffer, buf, strcspn(buf, "\n"));   
+    uart_write_value(local_buffer); 
        
-    uart_write_value(buf);
+    msleep(5);
     
-    msleep(20);
     memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
     uart_read_value(local_buffer, 1);
     
     if (local_buffer[0] != SENSOR_ACK)
-        pr_err("zproxmd: sensor did not respond with ACK\n");
+        dev_err(dev, "sensor did not respond with ACK\n");
     
 out:
     return count;
@@ -971,42 +941,42 @@ out:
 
 static ssize_t zproxmd_show_value(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    int read_length;
+    int len;
     char local_buffer[BUFFER_MAX_SIZE];
     
     memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
-    read_length = 0;
+    len = 0;
     
     uart_filp = filp_open(portname, O_RDWR | O_NOCTTY, 0); 
     clear_rx_circ_buf();
    
     if (strcmp(attr->attr.name, "freq_resp") == 0) {
         uart_write_value(CMD_FREQ_RESP_READ);
-        read_length = 1;
+        len = 1;
     }
     else if (strcmp(attr->attr.name, "range") == 0) {
         uart_write_value(CMD_RANGE_CONTROL_READ);
-        read_length = 3;
+        len = 3;
     }
     else if (strcmp(attr->attr.name, "sensitivity") == 0) {
         uart_write_value(CMD_SENS_READ);
-        read_length = 3;
+        len = 3;
     }
     else if (strcmp(attr->attr.name, "time_remaining") == 0) {
         uart_write_value(CMD_MD_OUT_STATE_READ);
-        read_length = 3;
+        len = 3;
     }
     else if (strcmp(attr->attr.name, "version") == 0) {
         uart_write_value(CMD_VERSION_READ);
-        read_length = 6;
+        len = 6;
     }
     else if (strcmp(attr->attr.name, "motion_detected") == 0) {
         uart_write_value(CMD_MD_STATUS_READ);
-        read_length = 1;
+        len = 1;
     }
     
-    msleep(20);
-    uart_read_value(local_buffer, read_length);    
+    msleep(10);
+    uart_read_value(local_buffer, len);    
     filp_close(uart_filp, 0);
     
     return sprintf(buf, "%s\n", local_buffer);
@@ -1154,6 +1124,7 @@ static int serial_zproxmd_probe(struct platform_device *pdev)
        
     sport->dev.class = zproxmd_class;  
     sport->dev.parent = &pdev->dev;
+    sport->dev.release = zproxmd_dev_release;
     dev_set_name(&sport->dev, DEV_NAME);
         
     retval = device_register(&sport->dev);
@@ -1244,35 +1215,11 @@ out:
 }
 
 static void __exit zproxmd_cleanup(void)
-{
-    char local_buffer[BUFFER_MAX_SIZE];
-    int i = 0;
-    
+{ 
+    struct zproxmd_port *sport = zproxmd_ports[0];  
     pr_info("Unloading ZMOTION kernel object driver...\n");
-    uart_filp = filp_open(portname, O_RDWR | O_NOCTTY, 0);
-    
-    pr_info("Resetting ZMOTION PIR Sensor...\n");
-    uart_write_value(CMD_RESET_REQUEST);
-    
-    msleep(20);
-    memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
-    uart_read_value(local_buffer, 1);
-    
-    if (local_buffer[0] == SENSOR_ACK) {
-        for (i = 0; i < 4; i++) {
-            uart_write_value(&RESET_CMD_SEQ[i]);
-            msleep(10);
-        }
-        memset(local_buffer, 0, sizeof(char) * BUFFER_MAX_SIZE);
-        uart_read_value(local_buffer, 1);
-    }
-    
-    filp_close(uart_filp, 0);
-    msleep(100);
-
-    platform_driver_unregister(&serial_zproxmd_driver);
-    msleep(100);
-    
+    device_unregister(&sport->dev);
+    platform_driver_unregister(&serial_zproxmd_driver);  
     uart_unregister_driver(&zproxmd_reg);
     class_destroy(zproxmd_class);
 }
