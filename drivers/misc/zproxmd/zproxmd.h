@@ -1,13 +1,19 @@
 /*
  * Proximity & Motion Detector header
  *
- * Copyright 2015 Tudor Design Systems, LLC.
+ * Copyleft 2016 Tudor Design Systems, LLC.
  *
  * Author: Cody Tudor <cody.tudor@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  */
 #ifndef __ZPROXMD_H_INCLUDED
@@ -16,7 +22,6 @@
 #include <linux/device.h>
 #include <linux/kernel.h>     /* This is a linux kernel driver*/
 #include <linux/module.h>     /* This will be a .ko */
-#include <linux/proc_fs.h>    /* This .ko will utilize the /proc filesystem*/
 #include <linux/string.h>     /* Used for string literals*/
 #include <linux/module.h>
 #include <linux/ioport.h>
@@ -38,20 +43,6 @@
 #include <asm/irq.h>
 #include <linux/platform_data/zproxmd-serial.h>
 #include <linux/platform_data/dma-imx.h>
-
-extern const struct file_operations zproxmd_version_fops;
-extern const struct file_operations zproxmd_time_remaining_fops;
-extern const struct file_operations zproxmd_motion_detected_fops;
-extern const struct file_operations zproxmd_fresp_fops;
-extern const struct file_operations zproxmd_sensitivity_fops;
-extern const struct file_operations zproxmd_range_fops;
-extern char *portname;
-extern struct file* uart_filp;
-
-/* Global public functions */
-void uart_write_value( const unsigned char *tx_buffer, int buffer_length );
-void uart_read_value( char *rx_buffer, const int len );
-void clear_rx_circ_buf( void );
 
 /* Register definitions */
 #define URXD0                 0x0  /* Receiver Register */
@@ -167,7 +158,7 @@ void clear_rx_circ_buf( void );
 #define SENSOR_ACK                  0x06
 #define SENSOR_NACK                 0x15
 #define MCTRL_TIMEOUT               (250*HZ/1000)
-#define CTSTL 16
+#define CTSTL                       16
 
 // Serial Command list for the ZEPIR0BAS02MODG module
 #define CMD_MD_STATUS_READ          "a"
