@@ -56,7 +56,7 @@ static int zproxmd_uart_request_port(struct uart_port *port);
 static void zproxmd_uart_config_port(struct uart_port *port, int flags);
 static int zproxmd_uart_verify_port(struct uart_port *port, struct serial_struct *ser);
 
-/* Interrupt space function prototypes */
+/* Interrupt space function prototypes  */
 static irqreturn_t zproxmd_interrupt_rx(int irq, void *dev_id);
 static irqreturn_t zproxmd_interrupt_tx(int irq, void *dev_id);
 static irqreturn_t zproxmd_interrupt_handler(int irq, void *dev_id);
@@ -149,9 +149,7 @@ err_out_2:
     pr_err("xmit was NULL\n");
 }
 
-/*
- * Handle any change of modem status signal since we were last called.
- */
+/* Handle any change of modem status signal since we were last called */
 static void zproxmd_mctrl_check(struct zproxmd_port *sport)
 {
     unsigned int status, changed;
@@ -190,31 +188,23 @@ static void zproxmd_timeout(unsigned long data)
     }
 }
 
-/*
- * Return TIOCSER_TEMT when transmitter is not busy.
- */
+/* Return TIOCSER_TEMT when transmitter is not busy */
 static unsigned int zproxmd_uart_tx_empty(struct uart_port *port)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
     unsigned int retval;
     
-    //pr_info( "zproxmd_uart_tx_empty\n" );
-
     retval = (readl(sport->port.membase + USR2) & USR2_TXDC) ?  TIOCSER_TEMT : 0;
 
     return retval;
 }
 
-/*
- * We have a modem side uart, so the meanings of RTS and CTS are inverted.
- */
+/* We have a modem side uart, so the meanings of RTS and CTS are inverted */
 static unsigned int zproxmd_uart_get_mctrl(struct uart_port *port)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
     unsigned int retval = TIOCM_DSR | TIOCM_CAR;
     
-    //pr_info( "zproxmd_uart_get_mctrl\n" );
-
     if (readl(sport->port.membase + USR1) & USR1_RTSS)
         retval |= TIOCM_CTS;
 
@@ -232,8 +222,6 @@ static void zproxmd_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
     unsigned long temp;
     
-    //pr_info( "zproxmd_uart_set_mctrl\n" );
-
     temp = readl(sport->port.membase + UCR2) & ~UCR2_CTS;
 
     if (mctrl & TIOCM_RTS)
@@ -248,16 +236,12 @@ static void zproxmd_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
     writel(temp, sport->port.membase + 0xb4);
 }
 
-/*
- * Interrupts always disabled.
- */
+/* Interrupts always disabled */
 static void zproxmd_uart_break_ctl(struct uart_port *port, int break_state)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
     unsigned long flags, temp;
     
-    //pr_info( "zproxmd_uart_break_ctl\n" );
-
     spin_lock_irqsave(&sport->port.lock, flags);
     
     temp = readl(sport->port.membase + UCR1) & ~UCR1_SNDBRK;
@@ -276,8 +260,6 @@ static int zproxmd_uart_startup(struct uart_port *port)
     int retval;
     unsigned long flags, temp;
     
-    //pr_info( "zproxmd_uart_startup\n" );
-    
     zproxmd_ports[0] = (struct zproxmd_port *) port;
 
     retval = clk_prepare_enable(sport->clk_per);
@@ -295,7 +277,8 @@ static int zproxmd_uart_startup(struct uart_port *port)
     temp |= 2 << UFCR_TXTL_SHF | 1;
     writel(temp, sport->port.membase + UFCR);
 
-    /* disable the DREN bit (Data Ready interrupt enable) before
+    /* 
+     * disable the DREN bit (Data Ready interrupt enable) before
      * requesting IRQs
      */
     temp = readl(sport->port.membase + UCR4);
@@ -328,9 +311,7 @@ static int zproxmd_uart_startup(struct uart_port *port)
     }
 
     spin_lock_irqsave(&sport->port.lock, flags);
-    /*
-     * Finally, clear and enable interrupts
-     */
+    /* Finally, clear and enable interrupts */
     writel(USR1_RTSD, sport->port.membase + USR1);
 
     temp = readl(sport->port.membase + UCR1);
@@ -348,9 +329,7 @@ static int zproxmd_uart_startup(struct uart_port *port)
     temp |= IMX21_UCR3_RXDMUXSEL | UCR3_ADNIMP;
     writel(temp, sport->port.membase + UCR3);
 
-    /*
-     * Enable modem status interrupts
-     */
+    /* Enable modem status interrupts */
     zproxmd_uart_enable_ms(&sport->port);
     spin_unlock_irqrestore(&sport->port.lock, flags);
 
@@ -370,32 +349,23 @@ static void zproxmd_uart_shutdown(struct uart_port *port)
     unsigned long temp;
     unsigned long flags;
     
-    //pr_info( "zproxmd_uart_shutdown\n" );
-
     spin_lock_irqsave(&sport->port.lock, flags);
     temp = readl(sport->port.membase + UCR2);
     temp &= ~(UCR2_TXEN);
     writel(temp, sport->port.membase + UCR2);
     spin_unlock_irqrestore(&sport->port.lock, flags);
 
-    /*
-     * Stop our timer.
-     */
+    /* Stop our timer */
     del_timer_sync(&sport->timer);
 
-    /*
-     * Free the interrupts
-     */
+    /* Free the interrupts */
     if (sport->txirq > 0) {
         free_irq(sport->txirq, sport);
         free_irq(sport->rxirq, sport);
     } else
         free_irq(sport->port.irq, sport);
 
-    /*
-     * Disable all interrupts, port and break condition.
-     */
-
+    /* Disable all interrupts, port and break condition */
     spin_lock_irqsave(&sport->port.lock, flags);
     temp = readl(sport->port.membase + UCR1);
     temp &= ~(UCR1_TXMPTYEN | UCR1_RRDYEN | UCR1_RTSDEN | UCR1_UARTEN);
@@ -415,39 +385,20 @@ static void zproxmd_uart_set_termios(struct uart_port *port, struct ktermios *te
     unsigned int div, ufcr;
     unsigned long num, denom;
     uint64_t tdiv64;
-    
- /*  The settings we wish to implement on the uart
- *     
-    tty.c_cflag &= ( B9600 | CS8 | CLOCAL | CREAD ); 
-    tty.c_cflag &= ~( PARENB | PARODD );                 // shut off parity 
-    tty.c_cflag &= ~CRTSCTS;
-    tty.c_cflag &= ~CSTOPB; 
-    
-    tty.c_iflag = 0;
-    tty.c_iflag |= ( IGNBRK | IGNPAR );                  // ignore break & parity on the input
 
-    tty.c_oflag = 0;                                     // no remapping, no delays 
-    tty.c_oflag |= OPOST;
-    tty.c_lflag = 0;                                     // no canonical processing
-                                                         // no signaling chars, no echo,
-    tty.c_cc[VTIME] = 2;                                 // 200ms read timeout
-    tty.c_cc[VMIN] = 0;                                  // read doesn't block 
-*/
-    
-    //pr_info( "zproxmd_uart_set_termios\n" );
-
-    termios->c_cflag |= (B9600 | CS8 | CLOCAL | CREAD);     // 9600 Baud, 8 Data bits, enable read
+    /* 9600 Baud, 8 Data bits, enable read */
+    termios->c_cflag |= (B9600 | CS8 | CLOCAL | CREAD);
     ucr2 = (UCR2_WS | UCR2_SRST | UCR2_IRTS);
 
     termios->c_cflag &= ~CRTSCTS;
-    termios->c_cflag &= ~CSTOPB;                              // one stop bit only
-    termios->c_cflag &= ~(PARENB | PARODD);                 // shut off parity 
+    /* one stop bit only */
+    termios->c_cflag &= ~CSTOPB;
+    /* shut off parity */
+    termios->c_cflag &= ~(PARENB | PARODD); 
 
     del_timer_sync(&sport->timer);
 
-    /*
-     * Ask the core to calculate the divisor for us.
-     */
+    /* Ask the core to calculate the divisor for us */
     baud = uart_get_baud_rate(port, termios, old, 50, port->uartclk / 16);
     quot = uart_get_divisor(port, baud);
 
@@ -455,7 +406,8 @@ static void zproxmd_uart_set_termios(struct uart_port *port, struct ktermios *te
 
     sport->port.ignore_status_mask = 0;
     
-    termios->c_iflag |= (IGNBRK | IGNPAR);                  // ignore break & parity on the input
+    /* ignore break & parity on the input */
+    termios->c_iflag |= (IGNBRK | IGNPAR);
     sport->port.ignore_status_mask |= URXD_PRERR;
     sport->port.ignore_status_mask |= URXD_BRK;
     sport->port.ignore_status_mask |= URXD_OVRRUN;
@@ -463,14 +415,10 @@ static void zproxmd_uart_set_termios(struct uart_port *port, struct ktermios *te
     termios->c_lflag &= ~ECHO;
     termios->c_lflag &= ~ICANON;
 
-    /*
-     * Update the per-port timeout.
-     */
+    /* Update the per-port timeout */
     uart_update_timeout(port, termios->c_cflag, baud);
 
-    /*
-     * disable interrupts and drain transmitter
-     */
+    /* disable interrupts and drain transmitter */
     old_ucr1 = readl(sport->port.membase + UCR1);
     writel(old_ucr1 & ~(UCR1_TXMPTYEN | UCR1_RRDYEN | UCR1_RTSDEN), sport->port.membase + UCR1);
 
@@ -528,37 +476,27 @@ static void zproxmd_uart_set_termios(struct uart_port *port, struct ktermios *te
 static const char *zproxmd_uart_type(struct uart_port *port)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
-    
-    //pr_info( "zproxmd_uart_type\n" );
 
     return sport->port.type == PORT_ZPROXMD ? "ZMOTION Sensor" : NULL;
 }
 
-/*
- * Release the memory region(s) being used by 'port'.
- */
+/* Release the memory region(s) being used by 'port' */
 static void zproxmd_uart_release_port(struct uart_port *port)
 {
     struct platform_device *pdev = to_platform_device(port->dev);
     struct resource *mmres;
     
-    //pr_info( "zproxmd_uart_release_port\n" );
-
     mmres = platform_get_resource(pdev, IORESOURCE_MEM, 0);
     release_mem_region(mmres->start, resource_size(mmres));
 }
 
-/*
- * Request the memory region(s) being used by 'port'.
- */
+/* Request the memory region(s) being used by 'port' */
 static int zproxmd_uart_request_port(struct uart_port *port)
 {
     struct platform_device *pdev = to_platform_device(port->dev);
     struct resource *mmres;
     void *retval;
     
-    //pr_info( "zproxmd_uart_request_port\n" );
-
     mmres = platform_get_resource(pdev, IORESOURCE_MEM, 0);
     if (!mmres)
         return -ENODEV;
@@ -568,15 +506,11 @@ static int zproxmd_uart_request_port(struct uart_port *port)
     return  retval ? 0 : -EBUSY;
 }
 
-/*
- * Configure/autoconfigure the port.
- */
+/* Configure/autoconfigure the port */
 static void zproxmd_uart_config_port(struct uart_port *port, int flags)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
     
-    //pr_info( "zproxmd_uart_config_port\n" );
-
     if (flags & UART_CONFIG_TYPE && zproxmd_uart_request_port(&sport->port) == 0) {
         sport->port.type = PORT_ZPROXMD;
         zproxmd_ports[0]->port = sport->port;
@@ -592,8 +526,6 @@ static int zproxmd_uart_verify_port(struct uart_port *port, struct serial_struct
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
     int retval = 0;
-    
-    //pr_info( "zproxmd_uart_verify_port\n" );
 
     if (ser->type != PORT_UNKNOWN && ser->type != PORT_ZPROXMD)
         retval = -EINVAL;
@@ -612,9 +544,7 @@ static int zproxmd_uart_verify_port(struct uart_port *port, struct serial_struct
     return retval;
 }
 
-/*
- * Set the modem control timer to fire immediately.
- */
+/* Set the modem control timer to fire immediately */
 static void zproxmd_uart_enable_ms(struct uart_port *port)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
@@ -626,14 +556,11 @@ static void zproxmd_transmit_buffer(struct zproxmd_port *sport)
 {
     struct circ_buf *xmit = &sport->port.state->xmit;
     
-    //pr_info( "zproxmd_transmit_buffer\n" );
-
     while (!uart_circ_empty(xmit) && !(readl(sport->port.membase + 0xb4) & UTS_TXFULL)) {
         /* send xmit->buf[xmit->tail]
          * out the port here but do not send CR or LF for compatibility*/
         if ((xmit->buf[xmit->tail] != 0x0d) && (xmit->buf[xmit->tail] != 0x0a))
             writel(xmit->buf[xmit->tail], sport->port.membase + URTX0);
-            //printk( KERN_INFO "Sending the character: %c\n", xmit->buf[xmit->tail] );
         xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
         sport->port.icount.tx++;
     }
@@ -645,9 +572,7 @@ static void zproxmd_transmit_buffer(struct zproxmd_port *sport)
         zproxmd_uart_stop_tx(&sport->port);
 }
 
-/*
- * interrupts disabled on entry
- */
+/* interrupts disabled on entry */
 static void zproxmd_uart_start_tx(struct uart_port *port)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
@@ -707,8 +632,6 @@ static irqreturn_t zproxmd_interrupt_rx(int irq, void *dev_id)
         rx = readl(sport->port.membase + URXD0);
 
         temp = readl(sport->port.membase + USR2);
-        
-        //printk( KERN_INFO "Received the character: %c\n", ( unsigned char ) rx );
         
         rx_circ_buffer.buf[rx_circ_buffer.head] = (char) rx;
         rx_circ_buffer.head = rx_circ_buffer.head + 1;
@@ -787,9 +710,7 @@ static irqreturn_t zproxmd_interrupt_handler(int irq, void *dev_id)
     return IRQ_HANDLED;
 }
 
-/*
- * interrupts disabled on entry
- */
+/* interrupts disabled on entry */
 static void zproxmd_uart_stop_tx(struct uart_port *port)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
@@ -799,9 +720,7 @@ static void zproxmd_uart_stop_tx(struct uart_port *port)
     writel(temp & ~UCR1_TXMPTYEN, sport->port.membase + UCR1);
 }
 
-/*
- * interrupts disabled on entry
- */
+/* interrupts disabled on entry */
 static void zproxmd_uart_stop_rx(struct uart_port *port)
 {
     struct zproxmd_port *sport = (struct zproxmd_port *) port;
@@ -811,11 +730,31 @@ static void zproxmd_uart_stop_rx(struct uart_port *port)
     writel(temp & ~UCR2_RXEN, sport->port.membase + UCR2);
 }
 
+/* Define the basic serial functions we support */
+static struct uart_ops zproxmd_serial_ops = {
+    
+    .tx_empty       = zproxmd_uart_tx_empty,
+    .set_mctrl      = zproxmd_uart_set_mctrl,
+    .get_mctrl      = zproxmd_uart_get_mctrl,
+    .stop_tx        = zproxmd_uart_stop_tx,
+    .start_tx       = zproxmd_uart_start_tx,
+    .stop_rx        = zproxmd_uart_stop_rx,
+    .enable_ms      = zproxmd_uart_enable_ms,
+    .break_ctl      = zproxmd_uart_break_ctl,
+    .startup        = zproxmd_uart_startup,
+    .shutdown       = zproxmd_uart_shutdown,
+    .set_termios    = zproxmd_uart_set_termios,
+    .type           = zproxmd_uart_type,
+    .release_port   = zproxmd_uart_release_port,
+    .request_port   = zproxmd_uart_request_port,
+    .config_port    = zproxmd_uart_config_port,
+    .verify_port    = zproxmd_uart_verify_port,
+};
+
 static void zproxmd_dev_release(struct device *dev)
 {
     /* sentinel */
 }
-
 
 #define CMD_LIST_LENGTH 8
 
@@ -1011,30 +950,6 @@ static struct uart_driver zproxmd_reg = {
     .cons           = NULL,
 };
 
-/*
- *  Define the basic serial functions we support.
-*/
-
-static struct uart_ops zproxmd_serial_ops = {
-    
-    .tx_empty       = zproxmd_uart_tx_empty,
-    .set_mctrl      = zproxmd_uart_set_mctrl,
-    .get_mctrl      = zproxmd_uart_get_mctrl,
-    .stop_tx        = zproxmd_uart_stop_tx,
-    .start_tx       = zproxmd_uart_start_tx,
-    .stop_rx        = zproxmd_uart_stop_rx,
-    .enable_ms      = zproxmd_uart_enable_ms,
-    .break_ctl      = zproxmd_uart_break_ctl,
-    .startup        = zproxmd_uart_startup,
-    .shutdown       = zproxmd_uart_shutdown,
-    .set_termios    = zproxmd_uart_set_termios,
-    .type           = zproxmd_uart_type,
-    .release_port   = zproxmd_uart_release_port,
-    .request_port   = zproxmd_uart_request_port,
-    .config_port    = zproxmd_uart_config_port,
-    .verify_port    = zproxmd_uart_verify_port,
-};
-
 static struct class *zproxmd_class;
 
 static struct of_device_id zproxmd_dt_ids[] = {
@@ -1107,7 +1022,7 @@ static int serial_zproxmd_probe(struct platform_device *pdev)
     }
 
     sport->port.uartclk = clk_get_rate(sport->clk_per);
-
+    
     zproxmd_ports[0] = sport;
 
     pdata = dev_get_platdata(&pdev->dev);

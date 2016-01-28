@@ -38,7 +38,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/io.h>
-#include <linux/fs.h>         /* Used for the filp_open, filp_close, vfs_read, etc. functions*/ 
+#include <linux/fs.h>         /* Used for the filp_open, filp_close, vfs_read, etc. functions */ 
 
 #include <asm/irq.h>
 #include <linux/platform_data/zproxmd-serial.h>
@@ -160,7 +160,7 @@
 #define MCTRL_TIMEOUT               (250*HZ/1000)
 #define CTSTL                       16
 
-// Serial Command list for the ZEPIR0BAS02MODG module
+/* Serial Command list for the ZEPIR0BAS02MODG module */
 #define CMD_MD_STATUS_READ          "a"
 #define CMD_LG_AMBIENT_READ         "b"
 #define CMD_MD_CONFIG_STATUS_READ   "c"

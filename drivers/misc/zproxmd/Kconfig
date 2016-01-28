@@ -1,6 +1,6 @@
 config ZILOG_ZPROXMD
     tristate "Zilog ZMOTION Sensor Support"
-    depends on m && ARM && MODULES && ARCH_MXC
+    depends on ARCH_MXC && m
     default n
     help
         This kernel object adds support for configuring and reading
